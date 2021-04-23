@@ -29,21 +29,28 @@ _start:
 
     /* read kernel into memory at 0x10000 (segment 0x1000).
        kernel binary has been placed on the disk directly after the first sector
-       reading $20 * num_sectors sectors after (value in %cx)
+       reading $14 * num_sectors sectors after (value in %cx)
      */
-    movw $20, %cx
+    movw $14, %cx
     movb drive_num, %dl
     movw $disk_packet, %si
     movw $0x1000, segment
+    movw $0x0, offset
     movw $1, sector
 sector_loop:
     movb $0x42, %ah
     int $0x13
     jc disk_error
+    /* print A (since %ah will be 0 to indicate no error) */
+    call print_ah
 
-    addw $64, sector
+    addw $0x40, sector
     addw $0x8000, offset
     jnc sector_same_segment
+
+    /* print a ~ to indicate next segment */
+    movb $0x3D, %ah
+    call print_ah
 
     /* increment segment, reset offset if on different segment */
     addw $0x1000, segment
@@ -97,6 +104,7 @@ flush:
     movw %ax, %gs
     movw %ax, %ss
     movl $0x3000, %esp
+
     ljmp $0x8, $entry32
 
 .code32
@@ -123,9 +131,29 @@ enable_a20_wait1:
     jnc enable_a20_wait1
     ret
 
+/* prints contents of AH (+ ASCII value of A, so it is printable) and restores register states at the end */
+print_ah:
+    movb %bh, backup_bh
+    movb %ah, backup_ah
+    movb %al, backup_al
+
+    movb %ah, %al
+    addb $0x41, %al /* A == 0x41 */
+    xorb %bh, %bh
+    movb $0x0E, %ah
+    int $0x10
+
+    movb backup_bh, %bh
+    movb backup_ah, %ah
+    movb backup_al, %al
+    ret
+
 disk_error:
+    /* prints error code. subtract ASCII of "A" */
+    call print_ah
     movw $disk_error_str, %si
     call print
+    jmp _loop
 
 /* prints string in %ds:si */
 print:
@@ -165,6 +193,15 @@ segment:
     .word 0x0000
 sector:
     .quad 0x00000000
+sector2:
+    .quad 0x00000000
+
+backup_ah:
+    .byte 0x00
+backup_al:
+    .byte 0x00
+backup_bh:
+    .byte 0x00
 
 /* GDT */
 .align 16

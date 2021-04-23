@@ -1,20 +1,28 @@
+#include "config.h"
 #include "music.h"
 #include "timer.h"
 #include "sound.h"
 #include "math.h"
 
+#ifdef ENABLE_MUSIC
 struct Note {
     u8 octave;
-    u8 note;
+    u16 note;
     u16 duration;
 };
 
+#ifdef ENABLE_FPU
+typedef double ticks_t;
+#else
+typedef i32 ticks_t;
+#endif
+
 struct NoteActive {
     struct Note note;
-    double ticks;
+    ticks_t ticks;
 };
 
-#define TRACK_BPM 150
+#define TRACK_BPM 150.0
 #define TRACK_BPS (TRACK_BPM / 60.0)
 #define TICKS_PER_BEAT (TIMER_TPS / TRACK_BPS)
 #define TICKS_PER_SIXTEENTH (TICKS_PER_BEAT / 16.0)
@@ -303,16 +311,16 @@ static size_t PART_LENGTHS[TRACK_PARTS];
 static i32 indices[TRACK_PARTS];
 static struct NoteActive current[NUM_NOTES];
 
-void music_tick() {
+void music_tick(u32 ticks) {
     for (size_t i = 0; i < TRACK_PARTS; i++) {
-        if (indices[i] == -1 || (current[i].ticks -= 1) <= 0) {
+        if (indices[i] == -1 || (current[i].ticks -= ticks) <= 0) {
             indices[i] = (indices[i] + 1) % PART_LENGTHS[i];
 
-            double remainder = fabs(current[i].ticks);
+            ticks_t remainder = -current[i].ticks;
 
             struct Note note = TRACK[i][indices[i]];
             current[i].note = note;
-            current[i].ticks = TICKS_PER_SIXTEENTH * note.duration - remainder;
+            current[i].ticks = ((ticks_t)TICKS_PER_SIXTEENTH) * note.duration - remainder;
 
             sound_note(i, note.octave, note.note);
         }
@@ -325,17 +333,10 @@ void music_tick() {
 }
 
 void music_init() {
-    sound_wave(0, WAVE_TRIANGLE);
-    sound_volume(0, 255);
-
-    sound_wave(1, WAVE_NOISE);
-    sound_volume(1, 128);
-
-    sound_wave(2, WAVE_TRIANGLE);
-    sound_volume(2, 196);
-
-    sound_wave(3, WAVE_TRIANGLE);
-    sound_volume(3, 196);
+    sound_wave(0, WAVE_MELODY);
+    sound_wave(1, WAVE_SNARE);
+    sound_wave(2, WAVE_BASS);
+    sound_wave(3, WAVE_HARMONY);
 
     // AABA part
 #define PART(_i, _c, _b) do {                           \
@@ -359,3 +360,4 @@ void music_init() {
         indices[i] = -1;
     }
 }
+#endif

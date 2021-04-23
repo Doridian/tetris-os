@@ -3,7 +3,7 @@
 
 #include "util.h"
 
-void music_tick();
+void music_tick(u32 ticks);
 void music_init();
 
 #endif

@@ -1,5 +1,8 @@
+#include "config.h"
 #include "fpu.h"
+#include "util.h"
 
+#ifdef ENABLE_FPU
 void fpu_init() {
     size_t t;
 
@@ -13,3 +16,4 @@ void fpu_init() {
     asm("mov %0, %%cr4" :: "r"(t));
     asm("fninit");
 }
+#endif

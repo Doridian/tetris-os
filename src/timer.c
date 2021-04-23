@@ -10,26 +10,21 @@
 #define PIT_MASK 0xFF
 #define PIT_SET 0x36
 
-#define PIT_HZ 1193181
-#define DIV_OF_FREQ(_f) (PIT_HZ / (_f))
-#define FREQ_OF_DIV(_d) (PIT_HZ / (_d))
-#define REAL_FREQ_OF_FREQ(_f) (FREQ_OF_DIV(DIV_OF_FREQ((_f))))
-
 static struct {
     u64 frequency;
     u64 divisor;
-    u64 ticks;
+    u32 ticks;
 } state;
 
 static void timer_set(int hz) {
     outportb(PIT_CONTROL, PIT_SET);
 
-    u16 d = (u16) (1193131.666 / hz);
+    u16 d = (u16) (PIT_HZ / hz);
     outportb(PIT_A, d & PIT_MASK);
     outportb(PIT_A, (d >> 8) & PIT_MASK);
 }
 
-u64 timer_get() {
+u32 timer_get() {
     return state.ticks;
 }
 

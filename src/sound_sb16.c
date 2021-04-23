@@ -1,7 +1,16 @@
+#include "config.h"
+#ifdef ENABLE_SOUND_DRIVER_SB16
+
+#ifndef ENABLE_FPU
+#error "SB16 sound requires an FPU"
+#endif
+
 #include "sound.h"
+#include "sound_sb16.h"
 #include "system.h"
 #include "irq.h"
 #include "math.h"
+#include "string_util.h"
 
 static const f64 NOTES[NUM_OCTAVES * OCTAVE_SIZE] = {
     // O1
@@ -162,7 +171,7 @@ static u8 volumes[NUM_NOTES];
 static u8 notes[NUM_NOTES];
 static u8 waves[NUM_NOTES];
 
-void sound_note(u8 index, u8 octave, u8 note) {
+void sound_note(u8 index, u8 octave, note_t note) {
     notes[index] = (octave << 4) | note;
 }
 
@@ -174,8 +183,9 @@ void sound_master(u8 v) {
     volume_master = v;
 }
 
-void sound_wave(u8 index, u8 wave) {
+void sound_wave(u8 index, u8 wave, u8 volume) {
     waves[index] = wave;
+    volumes[index] = volume;
 }
 
 static void fill(i16 *buf, size_t len) {
@@ -268,7 +278,7 @@ static void reset() {
     return;
 fail:
     strlcpy(buf0, "FAILED TO RESET SB16: ", 128);
-    itoa(status, buf1, 128);
+    itoa_e(status, buf1, 128);
     strlcat(buf0, buf1, 128);
     panic(buf0);
 }
@@ -327,7 +337,7 @@ static void configure() {
     u8 v = MIXER_IRQ;
     if (v != MIXER_IRQ) {
         char buf0[128], buf1[128];
-        itoa(v, buf0, 128);
+        itoa_e(v, buf0, 128);
         strlcpy(buf1, "SB16 HAS INCORRECT IRQ: ", 128);
         strlcat(buf1, buf0, 128);
         panic(buf1);
@@ -354,3 +364,5 @@ void sound_init() {
     memset(&notes, NOTE_NONE, sizeof(notes));
     memset(&waves, WAVE_SIN, sizeof(waves));
 }
+
+#endif

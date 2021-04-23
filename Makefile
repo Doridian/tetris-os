@@ -13,8 +13,9 @@ endif
 GFLAGS=
 CCFLAGS=-m32 -std=c11 -O2 -g -Wall -Wextra -Wpedantic -Wstrict-aliasing
 CCFLAGS+=-Wno-pointer-arith -Wno-unused-parameter
-CCFLAGS+=-nostdlib -nostdinc -ffreestanding -fno-pie -fno-stack-protector
+CCFLAGS+=-nostdlib -nostdinc -ffreestanding -fno-pie -fno-stack-protector -fcf-protection=none
 CCFLAGS+=-fno-builtin-function -fno-builtin
+CCFLAGS+=-march=i486 -mtune=i486
 ASFLAGS=
 LDFLAGS=
 

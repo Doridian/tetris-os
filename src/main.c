@@ -1,6 +1,4 @@
-// remove to disable music, useful when building for hardware without an SB16
-#define ENABLE_MUSIC
-
+#include "config.h"
 #include "util.h"
 #include "screen.h"
 #include "idt.h"
@@ -10,12 +8,14 @@
 #include "font.h"
 #include "system.h"
 #include "keyboard.h"
-#include "speaker.h"
-#include "fpu.h"
 
 #ifdef ENABLE_MUSIC
 #include "sound.h"
 #include "music.h"
+#endif
+
+#ifdef ENABLE_FPU
+#include "fpu.h"
 #endif
 
 #define FPS 30
@@ -24,6 +24,7 @@
 #define TILE_SIZE 10
 
 #define LOGO_HEIGHT 5
+#define LOGO_WIDTH 23
 static const char *LOGO[LOGO_HEIGHT] = {
     "AAA BBB CCC DD  EEE FFF",
     " A  B    C  D D  E  F  ",
@@ -440,12 +441,12 @@ static void render_ui() {
 
 #define RENDER_STAT(_title, _value, _color, _x, _y, _w) do {\
         char buf[32];\
-        itoa((_value), buf, 32);\
+        i32 fw = font_width_i(itoa_e((_value), buf, 32));\
         font_str_doubled((_title), (_x), (_y), COLOR(7, 7, 3));\
-        font_str_doubled(buf, (_x) + (_w) - font_width(buf), (_y) + TILE_SIZE, (_color));\
+        font_str_doubled(buf, (_x) + (_w) - fw, (_y) + TILE_SIZE, (_color));\
     } while (0);
 
-    size_t w = font_width("SCORE");
+    const size_t w = font_width_i(5);
     RENDER_STAT("SCORE", state.score, COLOR(5, 5, 0), X_OFFSET_RIGHT, TILE_SIZE * 1, w);
     RENDER_STAT("LINES", state.lines, COLOR(5, 3, 0), X_OFFSET_RIGHT, TILE_SIZE * 4, w);
     RENDER_STAT("LEVEL", state.level, COLOR(5, 0, 0), X_OFFSET_RIGHT, TILE_SIZE * 7, w);
@@ -490,7 +491,7 @@ static void render_game_over() {
 
     font_str_doubled(
         "GAME OVER",
-        (SCREEN_WIDTH - font_width("GAME OVER")) / 2,
+        (SCREEN_WIDTH - font_width_i(9)) / 2,
         (SCREEN_HEIGHT / 2) - TILE_SIZE,
         (state.frames / 5) % 2 == 0 ?
             COLOR(6, 2, 1) :
@@ -498,18 +499,18 @@ static void render_game_over() {
     );
 
     char buf_score[64];
-    itoa(state.score, buf_score, 64);
+    i32 fw = itoa_e(state.score, buf_score, 64);
 
     font_str_doubled(
         "SCORE:",
-        (SCREEN_WIDTH - font_width("SCORE:")) / 2,
+        (SCREEN_WIDTH - font_width_i(6)) / 2,
         (SCREEN_HEIGHT / 2),
         COLOR(6, 6, 0)
     );
 
     font_str_doubled(
         buf_score,
-        (SCREEN_WIDTH - font_width(buf_score)) / 2,
+        (SCREEN_WIDTH - font_width_i(fw)) / 2,
         (SCREEN_HEIGHT / 2) + TILE_SIZE,
         COLOR(7, 7, 3)
     );
@@ -656,7 +657,7 @@ void render_menu() {
     screen_clear(COLOR(0, 0, 0));
 
     // render logo
-    size_t logo_width = strlen(LOGO[0]),
+    size_t logo_width = LOGO_WIDTH,
            logo_x = (SCREEN_WIDTH - (logo_width * TILE_SIZE)) / 2,
            logo_y = TILE_SIZE * 3;
 
@@ -684,7 +685,7 @@ void render_menu() {
     const char *play = "PRESS ENTER TO PLAY";
     font_str_doubled(
         play,
-        (SCREEN_WIDTH - font_width(play)) / 2,
+        (SCREEN_WIDTH - font_width_i(18)) / 2,
         logo_y + ((LOGO_HEIGHT + 6) * TILE_SIZE),
         (state.frames / 6) % 2 == 0 ?
             COLOR(6, 6, 2) :
@@ -695,9 +696,11 @@ void render_menu() {
 void _main(u32 magic) {
     idt_init();
     isr_init();
-    fpu_init();
-    irq_init();
     screen_init();
+#ifdef ENABLE_FPU
+    fpu_init();
+#endif
+    irq_init();
     timer_init();
     keyboard_init();
     generate_sprites();
@@ -716,11 +719,11 @@ void _main(u32 magic) {
     u32 last_frame = 0, last = 0;
 
     while (true) {
-        const u32 now = (u32) timer_get();
+        const u32 now = timer_get();
 
 #ifdef ENABLE_MUSIC
         if (now != last) {
-            music_tick();
+            music_tick(now - last);
             last = now;
         }
 #endif

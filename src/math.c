@@ -1,5 +1,11 @@
+#include "config.h"
 #include "math.h"
 
+i64 abs(i64 x) {
+    return x < 0 ? -x : x;
+}
+
+#ifdef ENABLE_FPU
 f64 fabs(f64 x) {
     return x < 0.0 ? -x : x;
 }
@@ -44,3 +50,4 @@ f64 pow(f64 x, f64 y) {
             "fmulp;" : "=t"(out) : "0"(x),"u"(y) : "st(1)" );
     return out;
 }
+#endif

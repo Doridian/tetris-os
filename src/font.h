@@ -4,7 +4,7 @@
 #include "util.h"
 #include "screen.h"
 
-#define font_width(_s) (strlen((_s)) * 8)
+#define font_width_i(_n) (_n * 8)
 #define font_height() (8)
 #define font_str_doubled(_s, _x, _y, _c) do {\
         const char *__s = (_s);\

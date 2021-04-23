@@ -1,6 +1,10 @@
 #ifndef UTIL_H
 #define UTIL_H
 
+#define EXPAND(x) x
+#define _STRINGIFY(x) #x
+#define STRINGIFY(x) _STRINGIFY(x)
+
 // fixed width integer types
 typedef unsigned char u8;
 typedef unsigned short u16;
@@ -84,15 +88,7 @@ static inline void outportb(u16 port, u8 data) {
     asm("outb %1, %0" : : "dN" (port), "a" (data));
 }
 
-static inline size_t strlen(const char *str) {
-    size_t l = 0;
-    while (*str++ != 0) {
-        l++;
-    }
-    return l;
-}
-
-static inline char *itoa(i32 x, char *s, size_t sz) {
+static inline i32 itoa_e(i32 x, char *s, size_t sz) {
     // TODO: holy god this is bad code we need some error handling here
     if (sz < 20) {
         extern void panic(const char *);
@@ -109,7 +105,9 @@ static inline char *itoa(i32 x, char *s, size_t sz) {
         tmp = x % 10;
         s[i++] = (tmp < 10) ? (tmp + '0') : (tmp + 'a' - 10);
     } while (x /= 10);
+    x = i;
     s[i--] = 0;
+
 
     for (j = 0; j < i; j++, i--) {
         tmp = s[j];
@@ -117,86 +115,11 @@ static inline char *itoa(i32 x, char *s, size_t sz) {
         s[i] = tmp;
     }
 
-    return s;
+    return x;
 }
 
-static inline void memset(void *dst, u8 value, size_t n) {
-    u8 *d = dst;
-
-    while (n-- > 0) {
-        *d++ = value;
-    }
-}
-
-static inline void *memcpy(void *dst, const void *src, size_t n) {
-    u8 *d = dst;
-    const u8 *s = src;
-
-    while (n-- > 0) {
-        *d++ = *s++;
-    }
-
-    return d;
-}
-
-static inline void *memmove(void *dst, const void *src, size_t n) {
-    // OK since we know that memcpy copies forwards
-    if (dst < src) {
-        return memcpy(dst, src, n);
-    }
-
-    u8 *d = dst;
-    const u8 *s = src;
-
-    for (size_t i = n; i > 0; i--) {
-        d[i - 1] = s[i - 1];
-    }
-
-    return dst;
-}
-
-// SEE: https://opensource.apple.com/source/Libc/Libc-1158.30.7/string/strlcat.c.auto.html
-static inline size_t strlcat(char *dst, const char *src, size_t size) {
-    const size_t sl = strlen(src),
-          dl = strlen(dst);
-
-    if (dl == size) {
-        return size + sl;
-    }
-
-    if (sl < (size - dl)) {
-        memcpy(dst + dl, src, sl + 1);
-    } else {
-        memcpy(dst + dl, src, size - dl - 1);
-        dst[size - 1] = '\0';
-    }
-
-    return sl + dl;
-}
-
-static inline size_t strlcpy(char *dst, const char *src, size_t n) {
-    // copy as many bytes as can fit
-    char *d = dst;
-    const char *s = src;
-    size_t size = n;
-
-    while (--n > 0) {
-        if ((*d++ = *s++) == 0) {
-            break;
-        }
-    }
-
-    // if we ran out of space, null terminate
-    if (n == 0) {
-        if (size != 0) {
-            *d = 0;
-        }
-
-        // traverse the rest of s
-        while (*s++);
-    }
-
-    return s - src - 1;
-}
+extern void memset(void *dst, u8 value, size_t n);
+extern void *memmove(void *dst, const void *src, size_t n);
+extern void *memcpy(void *dst, const void *src, size_t n);
 
 #endif
