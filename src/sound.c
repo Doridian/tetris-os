@@ -58,7 +58,6 @@ static const int NOTES[12] = {262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 
 #define BUFFER_SIZE ((size_t) (SAMPLE_RATE * BUFFER_MS / 1000))
 
 static __attribute__ ((aligned (4096))) i16 buffer[BUFFER_SIZE];
-//i16* buffer = (i16*) 0x00100000;
 static bool buffer_flip = false;
 
 static int sample_pos[NUM_NOTES];
@@ -206,8 +205,6 @@ static void set_sample_rate(u16 hz) {
 }
 
 static void transfer(void *buf, u32 len) {
-    //u8 mode = 0x48;
-
     // disable DMA channel
     outportb(DSP_ON_8, 4 + (DMA_CHANNEL_16 % 4));
 

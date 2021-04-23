@@ -302,9 +302,6 @@ void music_tick() {
         if (indices[i] == -1 || (current[i].ticks -= 1) <= 0) {
             indices[i] = (indices[i] + 1) % PART_LENGTHS[i];
 
-            //double remainder = fabs(current[i].ticks);
-            int remainder = (current[i].ticks < 0) ? -current[i].ticks : 0;
-
             struct Note note = TRACK[i][indices[i]];
             current[i].note = note;
             current[i].ticks = note.duration;
