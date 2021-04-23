@@ -16,20 +16,20 @@
 #define REAL_FREQ_OF_FREQ(_f) (FREQ_OF_DIV(DIV_OF_FREQ((_f))))
 
 static struct {
-    u64 frequency;
-    u64 divisor;
-    u64 ticks;
+    u32 frequency;
+    u32 divisor;
+    u32 ticks;
 } state;
 
 static void timer_set(int hz) {
     outportb(PIT_CONTROL, PIT_SET);
 
-    u16 d = (u16) (1193131.666 / hz);
+    u16 d = (u16) (PIT_HZ / hz);
     outportb(PIT_A, d & PIT_MASK);
     outportb(PIT_A, (d >> 8) & PIT_MASK);
 }
 
-u64 timer_get() {
+u32 timer_get() {
     return state.ticks;
 }
 
@@ -38,7 +38,7 @@ static void timer_handler(struct Registers *regs) {
 }
 
 void timer_init() {
-    const u64 freq = REAL_FREQ_OF_FREQ(TIMER_TPS);
+    const u32 freq = REAL_FREQ_OF_FREQ(TIMER_TPS);
     state.frequency = freq;
     state.divisor = DIV_OF_FREQ(freq);
     state.ticks = 0;

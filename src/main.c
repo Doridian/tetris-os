@@ -10,8 +10,8 @@
 #include "font.h"
 #include "system.h"
 #include "keyboard.h"
-#include "speaker.h"
-#include "fpu.h"
+//#include "speaker.h"
+//#include "fpu.h"
 
 #ifdef ENABLE_MUSIC
 #include "sound.h"
@@ -695,7 +695,7 @@ void render_menu() {
 void _main(u32 magic) {
     idt_init();
     isr_init();
-    fpu_init();
+    //fpu_init();
     irq_init();
     screen_init();
     timer_init();
@@ -716,14 +716,7 @@ void _main(u32 magic) {
     u32 last_frame = 0, last = 0;
 
     while (true) {
-        const u32 now = (u32) timer_get();
-
-#ifdef ENABLE_MUSIC
-        if (now != last) {
-            music_tick();
-            last = now;
-        }
-#endif
+        const u32 now = timer_get();
 
         if ((now - last_frame) > (TIMER_TPS / FPS)) {
             last_frame = now;

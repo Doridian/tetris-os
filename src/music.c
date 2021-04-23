@@ -1,7 +1,6 @@
 #include "music.h"
 #include "timer.h"
 #include "sound.h"
-#include "math.h"
 
 struct Note {
     u8 octave;
@@ -11,13 +10,8 @@ struct Note {
 
 struct NoteActive {
     struct Note note;
-    double ticks;
+    int ticks;
 };
-
-#define TRACK_BPM 150
-#define TRACK_BPS (TRACK_BPM / 60.0)
-#define TICKS_PER_BEAT (TIMER_TPS / TRACK_BPS)
-#define TICKS_PER_SIXTEENTH (TICKS_PER_BEAT / 16.0)
 
 #define CHORUS_MELODY_LENGTH (sizeof(CHORUS_MELODY) / sizeof(CHORUS_MELODY[0]))
 static const struct Note CHORUS_MELODY[] = {
@@ -308,11 +302,12 @@ void music_tick() {
         if (indices[i] == -1 || (current[i].ticks -= 1) <= 0) {
             indices[i] = (indices[i] + 1) % PART_LENGTHS[i];
 
-            double remainder = fabs(current[i].ticks);
+            //double remainder = fabs(current[i].ticks);
+            int remainder = (current[i].ticks < 0) ? -current[i].ticks : 0;
 
             struct Note note = TRACK[i][indices[i]];
             current[i].note = note;
-            current[i].ticks = TICKS_PER_SIXTEENTH * note.duration - remainder;
+            current[i].ticks = note.duration;
 
             sound_note(i, note.octave, note.note);
         }
