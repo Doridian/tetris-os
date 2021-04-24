@@ -14,10 +14,6 @@
 #include "music.h"
 #endif
 
-#ifdef ENABLE_FPU
-#include "fpu.h"
-#endif
-
 #define FPS 30
 #define LEVELS 30
 
@@ -696,11 +692,8 @@ void render_menu() {
 void _main(u32 magic) {
     idt_init();
     isr_init();
-    screen_init();
-#ifdef ENABLE_FPU
-    fpu_init();
-#endif
     irq_init();
+    screen_init();
     timer_init();
     keyboard_init();
     generate_sprites();
@@ -716,15 +709,16 @@ void _main(u32 magic) {
 
 
     bool last_music_toggle = false;
-    u32 last_frame = 0, last = 0;
+    u32 last_frame = 0, last = 0, last_music = 0;
 
     while (true) {
         const u32 now = timer_get();
 
-#ifdef ENABLE_MUSIC
-        if (now != last) {
-            music_tick(now - last);
-            last = now;
+#ifdef ENABLE_SOUND_DRIVER_OPL3
+        const u32 now_music = now / TIMER_TICKS_PER_MUSIC_TICK;
+        if (now_music != last_music) {
+            music_tick(now_music - last_music);
+            last_music = now_music;
         }
 #endif
 

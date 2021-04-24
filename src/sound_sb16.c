@@ -1,129 +1,30 @@
 #include "config.h"
 #ifdef ENABLE_SOUND_DRIVER_SB16
 
-#ifndef ENABLE_FPU
-#error "SB16 sound requires an FPU"
-#endif
-
 #include "sound.h"
 #include "sound_sb16.h"
 #include "system.h"
 #include "irq.h"
-#include "math.h"
+#include "music.h"
+#include "waveforms.h"
 #include "string_util.h"
 
-static const f64 NOTES[NUM_OCTAVES * OCTAVE_SIZE] = {
-    // O1
-    32.703195662574764,
-    34.647828872108946,
-    36.708095989675876,
-    38.890872965260044,
-    41.203444614108669,
-    43.653528929125407,
-    46.249302838954222,
-    48.99942949771858,
-    51.913087197493056,
-    54.999999999999915,
-    58.270470189761156,
-    61.735412657015416,
-
-    // O2
-    65.406391325149571,
-    69.295657744217934,
-    73.416191979351794,
-    77.781745930520117,
-    82.406889228217381,
-    87.307057858250872,
-    92.4986056779085,
-    97.998858995437217,
-    103.82617439498618,
-    109.99999999999989,
-    116.54094037952237,
-    123.4708253140309,
-
-    // O3
-    130.8127826502992,
-    138.59131548843592,
-    146.83238395870364,
-    155.56349186104035,
-    164.81377845643485,
-    174.61411571650183,
-    184.99721135581709,
-    195.99771799087452,
-    207.65234878997245,
-    219.99999999999989,
-    233.08188075904488,
-    246.94165062806198,
-
-    // O4
-    261.62556530059851,
-    277.18263097687202,
-    293.66476791740746,
-    311.12698372208081,
-    329.62755691286986,
-    349.22823143300383,
-    369.99442271163434,
-    391.99543598174927,
-    415.30469757994513,
-    440,
-    466.16376151808993,
-    493.88330125612413,
-
-    // O5
-    523.25113060119736,
-    554.36526195374427,
-    587.32953583481526,
-    622.25396744416196,
-    659.25511382574007,
-    698.456462866008,
-    739.98884542326903,
-    783.99087196349899,
-    830.60939515989071,
-    880.00000000000034,
-    932.32752303618031,
-    987.76660251224882,
-
-    // O6
-    1046.5022612023952,
-    1108.7305239074892,
-    1174.659071669631,
-    1244.5079348883246,
-    1318.5102276514808,
-    1396.9129257320169,
-    1479.977690846539,
-    1567.9817439269987,
-    1661.2187903197821,
-    1760.000000000002,
-    1864.6550460723618,
-    1975.5332050244986,
-
-    // O7
-    2093.0045224047913,
-    2217.4610478149793,
-    2349.3181433392633,
-    2489.0158697766506,
-    2637.020455302963,
-    2793.8258514640347,
-    2959.9553816930793,
-    3135.9634878539991,
-    3322.437580639566,
-    3520.0000000000055,
-    3729.3100921447249,
-    3951.0664100489994,
-};
+static const int OCTAVE[8] = {32, 64, 128, 256, 512, 1024, 2048, 4096};
+static const int NOTES[12] = {262, 277, 294, 311, 330, 349, 370, 392, 415, 440, 466, 494};
 
 #define MIXER_IRQ       0x5
 #define MIXER_IRQ_DATA  0x2
 
 // SB16 ports
-#define DSP_MIXER       0x224
-#define DSP_MIXER_DATA  0x225
-#define DSP_RESET       0x226
-#define DSP_READ        0x22A
-#define DSP_WRITE       0x22C
-#define DSP_READ_STATUS 0x22E
+#define SB_BASE        0x220
+#define DSP_MIXER       (SB_BASE + 0x4)
+#define DSP_MIXER_DATA  (SB_BASE + 0x5)
+#define DSP_RESET       (SB_BASE + 0x6)
+#define DSP_READ        (SB_BASE + 0xA)
+#define DSP_WRITE       (SB_BASE + 0xC)
+#define DSP_READ_STATUS (SB_BASE + 0xE)
 #define DSP_ACK_8       DSP_READ_STATUS
-#define DSP_ACK_16      0x22F
+#define DSP_ACK_16      (SB_BASE + 0xF)
 
 // TODO: ???
 #define DSP_PROG_16     0xB0
@@ -156,16 +57,15 @@ static const f64 NOTES[NUM_OCTAVES * OCTAVE_SIZE] = {
 #define DSP_VOLUME  0x22
 #define DSP_IRQ     0x80
 
-#define SAMPLE_RATE     48000
-#define BUFFER_MS       40
+#define SAMPLE_RATE     22050
+#define BUFFER_MS       50
 
-#define BUFFER_SIZE ((size_t) (SAMPLE_RATE * (BUFFER_MS / 1000.0)))
+#define BUFFER_SIZE ((size_t) (SAMPLE_RATE * BUFFER_MS / 1000))
 
-static i16 buffer[BUFFER_SIZE];
+static __attribute__ ((aligned (4096))) i16 buffer[BUFFER_SIZE];
 static bool buffer_flip = false;
 
-static u64 sample = 0;
-
+static int sample_pos[NUM_NOTES];
 static u8 volume_master;
 static u8 volumes[NUM_NOTES];
 static u8 notes[NUM_NOTES];
@@ -189,49 +89,55 @@ void sound_wave(u8 index, u8 wave, u8 volume) {
 }
 
 static void fill(i16 *buf, size_t len) {
+    static const unsigned int samples_per_tick = SAMPLE_RATE * 1000 / TRACK_BPMS / TICKS_PER_BEAT;
+    static unsigned int sample_counter = samples_per_tick;
+            
     for (size_t i = 0; i < len; i++) {
-        double f = 0.0;
+        int sample = 0;
+
+        if (sample_counter-- == 0) {
+            sample_counter = samples_per_tick;
+            music_tick(1);
+        }
 
         for (size_t j = 0; j < NUM_NOTES; j++) {
+            int s = 0;
             u8 octave = (notes[j] >> 4) & 0xF,
                note = notes[j] & 0xF;
 
             if (note == NOTE_NONE) {
+                sample_pos[j] = 0;
                 continue;
             }
 
-            double note_freq = NOTES[octave * OCTAVE_SIZE + note],
-                   freq = note_freq / (double) SAMPLE_RATE,
-                   d = 0.0,
-                   offset = 0.0;
-
+            // using 24.8 fixed point
+            int note_freq = OCTAVE[octave] * NOTES[note];
+            int note_phase = note_freq * 0x100 / SAMPLE_RATE;
+            sample_pos[j] = (sample_pos[j] + note_phase) % wave_len_fix;
+                    
             switch (waves[j]) {
-                case WAVE_SIN:
-                    d = sin(2.0 * PI * sample * freq);
+                case WAVE_SIN: {
+                    s = (int)((signed char)(wave_sine[sample_pos[j] / 0x100])) * 128;
                     break;
-                case WAVE_SQUARE:
-                    d = sin(2.0 * PI * sample * freq) >= 0.0 ? 1.0 : -1.0;
+                }
+                case WAVE_SQUARE: {
+                    s = (int)((signed char)(wave_square[sample_pos[j] / 0x100])) * 128;
                     break;
-                case WAVE_TRIANGLE:
-                    d = fabs(fmod(4 * (sample * freq) + 1.0, 4.0) - 2.0) - 1;
+                }
+                case WAVE_TRIANGLE: {
+                    s = (int)((signed char)(wave_triangle[sample_pos[j] / 0x100])) * 128;
                     break;
-                case WAVE_NOISE:
-                    offset = (freq * 128.0) * ((rand() / 4294967295.0) - 0.5);
-                    d = fabs(fmod(4 * (sample * freq + offset) + 1.0, 4.0) - 2.0) - 1;
+                }
+                case WAVE_NOISE: {
+                    s = ((signed int)rand()) / (32768 * 8);
                     break;
+                }
             }
 
-            d *= (volumes[j] / 255.0);
-            f += d;
+            sample += s * volumes[j] / 256;
         }
 
-        buf[i] = (i16) (((volume_master / 255.0) * 4096.0) * f);
-
-        sample++;
-
-        // avoid double overflow errors, instead just mess up one note every
-        // few minutes
-        sample %= (1 << 24);
+        buf[i] = (i16) (sample * volume_master / 256);
     }
 }
 
@@ -240,14 +146,26 @@ static void dsp_write(u8 b) {
     outportb(DSP_WRITE, b);
 }
 
-static void dsp_read(u8 b) {
+static u8 dsp_read(u8 b) {
     while (inportb(DSP_READ_STATUS) & 0x80);
-    outportb(DSP_READ, b);
+    return inportb(DSP_READ);
+}
+
+static bool dsp_detect_timeout(u8* b) {
+    for (size_t i = 0; i < 1000000; i++) {
+        if (inportb(DSP_READ_STATUS) & 0x80) {
+            *b = inportb(DSP_READ);
+            return true;
+        }
+    }
+
+    return false;
 }
 
 static void reset() {
     char buf0[128], buf1[128];
-
+    u8 status = 0, reason = 0;
+    
     outportb(DSP_RESET, 1);
 
     // TODO: maybe not necessary
@@ -256,13 +174,8 @@ static void reset() {
 
     outportb(DSP_RESET, 0);
 
-    u8 status = inportb(DSP_READ_STATUS);
-    if (~status & 128) {
-        goto fail;
-    }
-
-    status = inportb(DSP_READ);
-    if (status != 0xAA) {
+    if (!dsp_detect_timeout(&status) || status != 0xAA) {
+        reason = 1;
         goto fail;
     }
 
@@ -271,6 +184,7 @@ static void reset() {
        minor = inportb(DSP_READ);
 
     if (major < 4) {
+        reason = 3;
         status = (major << 4) | minor;
         goto fail;
     }
@@ -278,8 +192,15 @@ static void reset() {
     return;
 fail:
     strlcpy(buf0, "FAILED TO RESET SB16: ", 128);
+    
+    itoa_e(reason, buf1, 128);
+    strlcat(buf0, buf1, 128);
+    
+    strlcat(buf0, "/", 128);
+
     itoa_e(status, buf1, 128);
     strlcat(buf0, buf1, 128);
+    
     panic(buf0);
 }
 
@@ -290,19 +211,17 @@ static void set_sample_rate(u16 hz) {
 }
 
 static void transfer(void *buf, u32 len) {
-    u8 mode = 0x48;
-
     // disable DMA channel
     outportb(DSP_ON_8, 4 + (DMA_CHANNEL_16 % 4));
 
     // clear byte-poiner flip-flop
-    outportb(DMA_FLIP_FLOP, 1);
+    outportb(DMA_FLIP_FLOP, 0);
 
     // write DMA mode for transfer
-    outportb(DSP_ON_16, (DMA_CHANNEL_16 % 4) | mode | (1 << 4));
+    outportb(DSP_ON_16, (DMA_CHANNEL_16 % 4) + 0x58);
 
     // write buffer offset (div 2 for 16-bit)
-    u16 offset = (((uintptr_t) buf) / 2) % 65536;
+    u16 offset = (((uintptr_t) buf) / 2) & 0xFFFF;
     outportb(DMA_BASE_ADDR, (u8) ((offset >> 0) & 0xFF));
     outportb(DMA_BASE_ADDR, (u8) ((offset >> 8) & 0xFF));
 
@@ -310,11 +229,11 @@ static void transfer(void *buf, u32 len) {
     outportb(DMA_COUNT, (u8) (((len - 1) >> 0) & 0xFF));
     outportb(DMA_COUNT, (u8) (((len - 1) >> 8) & 0xFF));
 
-    // write buffer
+    // write buffer page
     outportb(0x8B, ((uintptr_t) buf) >> 16);
 
     // enable DMA channel
-    outportb(0xD4, DMA_CHANNEL_16 % 4);
+    outportb(DSP_ON_8, DMA_CHANNEL_16 % 4);
 }
 
 static void sb16_irq_handler(struct Registers *regs) {
@@ -325,8 +244,10 @@ static void sb16_irq_handler(struct Registers *regs) {
         (BUFFER_SIZE / 2)
     );
 
-    inportb(DSP_READ_STATUS);
+    //inportb(DSP_READ_STATUS);
     inportb(DSP_ACK_16);
+    outportb(0x20, 0x20);
+    outportb(0xA0, 0x20);
 }
 
 static void configure() {
@@ -345,7 +266,6 @@ static void configure() {
 }
 
 void sound_init() {
-    irq_install(MIXER_IRQ, sb16_irq_handler);
     reset();
     configure();
 
@@ -363,6 +283,7 @@ void sound_init() {
 
     memset(&notes, NOTE_NONE, sizeof(notes));
     memset(&waves, WAVE_SIN, sizeof(waves));
+    memcpy(buffer, wave_sine, 256);
 }
 
 #endif

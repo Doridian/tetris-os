@@ -11,8 +11,8 @@
 #define PIT_SET 0x36
 
 static struct {
-    u64 frequency;
-    u64 divisor;
+    u32 frequency;
+    u32 divisor;
     u32 ticks;
 } state;
 
@@ -33,11 +33,10 @@ static void timer_handler(struct Registers *regs) {
 }
 
 void timer_init() {
-    const u64 freq = REAL_FREQ_OF_FREQ(TIMER_TPS);
+    const u32 freq = REAL_FREQ_OF_FREQ(TIMER_TPS);
     state.frequency = freq;
     state.divisor = DIV_OF_FREQ(freq);
     state.ticks = 0;
-    //timer_set(state.divisor);
     timer_set(TIMER_TPS);
     irq_install(0, timer_handler);
 }

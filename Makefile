@@ -11,11 +11,11 @@ else
 endif
 
 GFLAGS=
-CCFLAGS=-m32 -std=c11 -O2 -g -Wall -Wextra -Wpedantic -Wstrict-aliasing
+CCFLAGS=-m32 -O2 -std=c11 -g -Wall -Wextra -Wpedantic -Wstrict-aliasing
 CCFLAGS+=-Wno-pointer-arith -Wno-unused-parameter
 CCFLAGS+=-nostdlib -nostdinc -ffreestanding -fno-pie -fno-stack-protector -fcf-protection=none
 CCFLAGS+=-fno-builtin-function -fno-builtin
-CCFLAGS+=-march=i486 -mtune=i486
+CCFLAGS+=-march=i486 -mtune=i486 -mfpmath=387 -msoft-float
 ASFLAGS=
 LDFLAGS=
 

@@ -2,7 +2,6 @@
 #include "music.h"
 #include "timer.h"
 #include "sound.h"
-#include "math.h"
 
 #ifdef ENABLE_MUSIC
 struct Note {
@@ -11,21 +10,10 @@ struct Note {
     u16 duration;
 };
 
-#ifdef ENABLE_FPU
-typedef double ticks_t;
-#else
-typedef i32 ticks_t;
-#endif
-
 struct NoteActive {
     struct Note note;
-    ticks_t ticks;
+    int ticks;
 };
-
-#define TRACK_BPM 150.0
-#define TRACK_BPS (TRACK_BPM / 60.0)
-#define TICKS_PER_BEAT (TIMER_TPS / TRACK_BPS)
-#define TICKS_PER_SIXTEENTH (TICKS_PER_BEAT / 16.0)
 
 #define CHORUS_MELODY_LENGTH (sizeof(CHORUS_MELODY) / sizeof(CHORUS_MELODY[0]))
 static const struct Note CHORUS_MELODY[] = {
@@ -316,11 +304,10 @@ void music_tick(u32 ticks) {
         if (indices[i] == -1 || (current[i].ticks -= ticks) <= 0) {
             indices[i] = (indices[i] + 1) % PART_LENGTHS[i];
 
-            ticks_t remainder = -current[i].ticks;
 
             struct Note note = TRACK[i][indices[i]];
             current[i].note = note;
-            current[i].ticks = ((ticks_t)TICKS_PER_SIXTEENTH) * note.duration - remainder;
+            current[i].ticks = note.duration;
 
             sound_note(i, note.octave, note.note);
         }

@@ -5,10 +5,7 @@
 #define ENABLE_MUSIC
 
 // choose exactly one sound driver
-//#define ENABLE_SOUND_DRIVER_OPL3
-#define ENABLE_SOUND_DRIVER_SB16
-
-// Enable FPU instructions. SB16 driver requires an FPU
-#define ENABLE_FPU
+#define ENABLE_SOUND_DRIVER_OPL3
+//#define ENABLE_SOUND_DRIVER_SB16
 
 #endif

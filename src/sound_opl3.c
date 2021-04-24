@@ -3,7 +3,6 @@
 #include "sound.h"
 #include "system.h"
 #include "irq.h"
-#include "math.h"
 
 /*
  * https://github.com/DhrBaksteen/ArduinoOPL2/blob/master/indepth.md
