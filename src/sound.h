@@ -16,8 +16,10 @@
 #define NUM_OCTAVES 7
 #define OCTAVE_SIZE 12
 
+#ifdef ENABLE_MUSIC
 void sound_init();
 void sound_master(u8 v);
 void sound_note(u8 index, u8 octave, note_t note);
+#endif
 
 #endif

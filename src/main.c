@@ -707,7 +707,6 @@ void _main(u32 magic) {
 
     state.menu = true;
 
-
     bool last_music_toggle = false;
     u32 last_frame = 0, last = 0, last_music = 0;
 

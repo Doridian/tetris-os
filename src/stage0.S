@@ -52,7 +52,7 @@ sector_loop:
     movb drive_num, %dl
     movw $disk_packet, %si
     int $0x13
-    jnc disk_success 
+    jnc disk_success
 
     movb $0x02, %ah
     movb $1, %al /* Read 1 sector */
@@ -79,7 +79,7 @@ disk_success:
     incb chs_head
     mov num_heads, %al
     cmp %al, chs_head
-    jne sector_same_head_cylinder
+    jna sector_same_head_cylinder
 
 /* head count exceeded, reset head to 0, increase cylinder */
     movb $0, chs_head
@@ -100,7 +100,7 @@ sector_same_segment:
     /* video mode: 320x200 @ 16 colors */
     movb $0x00, %ah
     movb $0x13, %al
-    int $0x10
+    int $0x10 
 
     /* enable A20 line */
     cli
@@ -112,7 +112,7 @@ sector_same_segment:
     call enable_a20_wait1
     xorw %ax, %ax
     inb $0x60
-
+    
     /* write new state with A20 bit set (0x2) */
     pushw %ax
     call enable_a20_wait0
@@ -127,7 +127,7 @@ sector_same_segment:
     movl %cr0, %eax
     orl $0x1, %eax
     movl %eax, %cr0
-
+    
     /* jmp to flush prefetch queue */
     jmp flush
 flush:
@@ -142,6 +142,7 @@ flush:
     movw %ax, %gs
     movw %ax, %ss
     movl $0x3000, %esp
+    
     ljmp $0x8, $entry32
 
 .code32
@@ -171,6 +172,9 @@ enable_a20_wait1:
 disk_error:
     movw $disk_error_str, %si
     call print
+1:
+    jmp 1b
+
 
 /* prints string in %ds:si */
 print:
@@ -193,6 +197,8 @@ welcome_str:
     .asciz "TETRIS TIME\r\n"
 disk_error_str:
     .asciz "DISK ERROR\r\n"
+debug_str:
+    .asciz "DEBUG\r\n"
 
 chs_sector:
     .byte 0x01
@@ -255,6 +261,12 @@ gdt_end:
 idt:
     .word 0
     .long 0
+
+debug:
+    movw $debug_str, %si
+    call print
+1:
+    jmp 1b
 
 /* MBR BOOT SIGNATURE */
 .fill 510-(.-_start), 1, 0
