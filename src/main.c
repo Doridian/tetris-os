@@ -14,8 +14,10 @@
 #include "music.h"
 #endif
 
-#define FPS 30
+#define FPS 60
 #define LEVELS 30
+#define DAS_DELAY 6
+#define AUTO_REPEAT 3
 
 #define TILE_SIZE 10
 
@@ -608,21 +610,29 @@ static void update() {
         rotate(true);
     }
 
-    if (state.controls.left.down &&
-        (state.frames - state.controls.left.pressed_frames) % 2 == 0) {
-        move(-1, 0);
-    } else if (state.controls.right.down &&
-         (state.frames - state.controls.right.pressed_frames) % 2 == 0) {
-        move(1, 0);
-    } else if (state.controls.down.down &&
-         (state.frames - state.controls.down.pressed_frames) % 2 == 0) {
-        if (!move(0, 1)) {
-            done();
-        }
-    } else if (state.controls.fast_down.pressed) {
-        while (move(0, 1));
-        done();
-    }
+	if(state.controls.left.down != state.controls.right.down) {
+		if (state.controls.left.down) {
+			if ((state.frames - state.controls.left.pressed_frames) > 0 && (state.frames - state.controls.left.pressed_frames) < DAS_DELAY) {
+			} else if ((state.frames - state.controls.left.pressed_frames) % AUTO_REPEAT == 0) {
+				move(-1, 0);
+			}
+		} else if ((state.frames - state.controls.right.pressed_frames) > 0 && (state.frames - state.controls.right.pressed_frames) < DAS_DELAY) {
+		} else if ((state.frames - state.controls.right.pressed_frames) % AUTO_REPEAT == 0) {
+			move(1, 0);
+		}
+	}
+
+	if (state.controls.fast_down.pressed) {
+		while (move(0, 1));
+		done();
+	} else if (state.controls.down.down) {
+		if ((state.frames - state.controls.down.pressed_frames) > 0 && (state.frames - state.controls.down.pressed_frames) < DAS_DELAY) {
+		} else if ((state.frames - state.controls.down.pressed_frames) % AUTO_REPEAT == 0) {
+			if (!move(0, 1)) {
+				done();
+			}
+		}
+	}
 
     if (--state.frames_since_step == 0) {
         step();
