@@ -184,7 +184,7 @@ static u32 LINE_MULTIPLIERS[4] = {
     40, 100, 300, 1200
 };
 
-#define NUM_CONTROLS 7
+#define NUM_CONTROLS 8
 struct Control {
     bool down;
     bool last;
@@ -218,6 +218,7 @@ static struct {
             struct Control right;
             struct Control down;
             struct Control fast_down;
+            struct Control pause;
         };
         struct Control raw[NUM_CONTROLS];
     } controls;
@@ -534,7 +535,7 @@ void reset(u32 level) {
     spawn();
 }
 
-static void update() {
+static void update(u32 now) {
     if (state.game_over) {
         if (keyboard_char('\n')) {
             reset(0);
@@ -589,7 +590,8 @@ static void update() {
         keyboard_key(KEY_LEFT),
         keyboard_key(KEY_RIGHT),
         keyboard_key(KEY_DOWN),
-        keyboard_char(' ')
+        keyboard_char(' '),
+        keyboard_char('p')
     };
 
     for (size_t i = 0; i < NUM_CONTROLS; i++) {
@@ -626,13 +628,17 @@ static void update() {
 		while (move(0, 1));
 		done();
 	} else if (state.controls.down.down) {
-		if ((state.frames - state.controls.down.pressed_frames) > 0 && (state.frames - state.controls.down.pressed_frames) < DAS_DELAY) {
+		if ((state.frames - state.controls.down.pressed_frames) > 0 && (state.frames - state.controls.down.pressed_frames) < AUTO_REPEAT) {
 		} else if ((state.frames - state.controls.down.pressed_frames) % AUTO_REPEAT == 0) {
 			if (!move(0, 1)) {
 				done();
 			}
 		}
 	}
+
+    if (state.controls.pause.pressed) {
+        state.pause = true;
+    }
 
     if (--state.frames_since_step == 0) {
         step();
@@ -699,6 +705,52 @@ void render_menu() {
     );
 }
 
+void update_pause(u32 now) {
+    struct Control *c = &state.controls.pause;   
+    c->last = c->down;
+    c->down = keyboard_char('p');
+    c->pressed = !c->last && c->down;
+
+    if (state.controls.pause.pressed) {
+        state.pause = false;
+    }
+}
+
+void render_pause() {
+    screen_clear(COLOR(0, 0, 0));
+    render_border();
+    const size_t x = font_width_i(5);
+    RENDER_STAT("SCORE", state.score, COLOR(5, 5, 0), X_OFFSET_RIGHT, TILE_SIZE * 1, x);
+    RENDER_STAT("LINES", state.lines, COLOR(5, 3, 0), X_OFFSET_RIGHT, TILE_SIZE * 4, x);
+    RENDER_STAT("LEVEL", state.level, COLOR(5, 0, 0), X_OFFSET_RIGHT, TILE_SIZE * 7, x);
+
+    const size_t w = SCREEN_WIDTH / 3, h = SCREEN_HEIGHT / 3;
+    screen_fill(
+        COLOR(4, 4, 2),
+        (SCREEN_WIDTH - w) / 2,
+        (SCREEN_HEIGHT - h) / 2,
+        w,
+        h
+    );
+
+    screen_fill(
+        COLOR(2, 2, 1),
+        (SCREEN_WIDTH - (w - 8)) / 2,
+        (SCREEN_HEIGHT - (h - 8)) / 2,
+        w - 8,
+        h - 8
+    );
+
+    font_str_doubled(
+        "PAUSE",
+        (SCREEN_WIDTH - font_width_i(5)) / 2,
+        (SCREEN_HEIGHT / 2) - TILE_SIZE + 6,
+        (timer_get() / 50) % 2 == 0 ?
+            COLOR(6, 2, 1) :
+            COLOR(7, 4, 2)
+    );
+}
+
 void _main(u32 magic) {
     idt_init();
     isr_init();
@@ -716,12 +768,17 @@ void _main(u32 magic) {
 #endif
 
     state.menu = true;
+    state.pause = false;
 
     bool last_music_toggle = false;
     u32 last_frame = 0, last = 0, last_music = 0;
 
     while (true) {
         const u32 now = timer_get();
+        
+        if (state.pause) {
+            goto check;
+        }
 
 #ifdef ENABLE_SOUND_DRIVER_OPL3
         const u32 now_music = now / TIMER_TICKS_PER_MUSIC_TICK;
@@ -731,15 +788,20 @@ void _main(u32 magic) {
         }
 #endif
 
+        check:
         if ((now - last_frame) > (TIMER_TPS / FPS)) {
             last_frame = now;
 
             if (state.menu) {
                 update_menu();
                 render_menu();
-            } else {
-                update();
+            } else if (!state.pause) {
+                update(now);
                 render();
+            } else {
+                update_pause(now);
+                render_pause();
+                goto end;
             }
 
 #ifdef ENABLE_MUSIC
@@ -754,9 +816,9 @@ void _main(u32 magic) {
                 last_music_toggle = false;
             }
 #endif
-
-            screen_swap();
             state.frames++;
+            end:
+            screen_swap();
         }
     }
 }
